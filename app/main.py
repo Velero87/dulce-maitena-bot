@@ -47,36 +47,56 @@ def create_app() -> Flask:
             return challenge, 200
         return "forbidden", 403
 
-    @app.post("/meta/webhook")
+        @app.post("/meta/webhook")
     def receive_webhook():
         payload = request.get_json(silent=True) or {}
+        print("[WEBHOOK_RAW]", payload, flush=True)
 
-        for entry in payload.get("entry", []):
-            for change in entry.get("changes", []):
-                value = change.get("value", {})
-                messages = value.get("messages", [])
-                contacts = value.get("contacts", [])
-                if not messages:
-                    continue
+        try:
+            for entry in payload.get("entry", []):
+                for change in entry.get("changes", []):
+                    value = change.get("value", {})
+                    print("[WEBHOOK_VALUE]", value, flush=True)
 
-                incoming = messages[0]
-                sender = incoming.get("from")
-                msg_type = incoming.get("type")
-                text = incoming.get("text", {}).get("body", "")
+                    messages = value.get("messages", [])
+                    contacts = value.get("contacts", [])
 
-                if not sender:
-                    continue
+                    if not messages:
+                        print("[WEBHOOK_NO_MESSAGES]", flush=True)
+                        continue
 
-                if msg_type != "text":
-                    result = send_whatsapp_text(sender, NON_TEXT_TEXT)
+                    incoming = messages[0]
+                    sender = incoming.get("from")
+                    msg_type = incoming.get("type")
+                    text = incoming.get("text", {}).get("body", "").strip()
+
+                    print("[WEBHOOK_SENDER]", sender, flush=True)
+                    print("[WEBHOOK_TYPE]", msg_type, flush=True)
+                    print("[WEBHOOK_TEXT]", text, flush=True)
+
+                    if not sender:
+                        print("[WEBHOOK_NO_SENDER]", flush=True)
+                        continue
+
+                    if msg_type != "text":
+                        print("[WEBHOOK_NON_TEXT_REPLY]", NON_TEXT_TEXT, flush=True)
+                        result = send_whatsapp_text(sender, NON_TEXT_TEXT)
+                        print("[WHATSAPP_SEND_RESULT]", result, flush=True)
+                        maybe_resume_template(result, sender)
+                        continue
+
+                    reply = handle_whatsapp_message(sender, text)
+                    print("[BOT_REPLY]", reply, flush=True)
+
+                    result = send_whatsapp_text(sender, reply)
+                    print("[WHATSAPP_SEND_RESULT]", result, flush=True)
+
                     maybe_resume_template(result, sender)
-                    continue
 
-                reply = handle_whatsapp_message(sender, text)
-                result = send_whatsapp_text(sender, reply)
-                maybe_resume_template(result, sender)
-
-        return jsonify({"received": True})
+            return jsonify({"received": True})
+        except Exception as exc:
+            print("[WEBHOOK_ERROR]", str(exc), flush=True)
+            return jsonify({"error": str(exc)}), 500
 
     @app.post("/manual/publish")
     def manual_publish():
