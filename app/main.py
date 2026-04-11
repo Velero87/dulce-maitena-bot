@@ -13,7 +13,6 @@ from app.services.meta_service import (
 from app.services.whatsapp_bot import handle_whatsapp_message, NON_TEXT_TEXT
 
 
-
 def create_app() -> Flask:
     app = Flask(__name__, static_folder=None)
     init_db()
@@ -31,7 +30,13 @@ def create_app() -> Flask:
 
     @app.get("/health")
     def health():
-        return jsonify({"ok": True, "business": settings.BUSINESS_NAME, "whatsapp_ai": settings.WHATSAPP_AI_ENABLED})
+        return jsonify(
+            {
+                "ok": True,
+                "business": settings.BUSINESS_NAME,
+                "whatsapp_ai": settings.WHATSAPP_AI_ENABLED,
+            }
+        )
 
     @app.get("/static/<path:filename>")
     def static_files(filename: str):
@@ -47,7 +52,7 @@ def create_app() -> Flask:
             return challenge, 200
         return "forbidden", 403
 
-        @app.post("/meta/webhook")
+    @app.post("/meta/webhook")
     def receive_webhook():
         payload = request.get_json(silent=True) or {}
         print("[WEBHOOK_RAW]", payload, flush=True)
@@ -106,21 +111,26 @@ def create_app() -> Flask:
     return app
 
 
-
 def maybe_resume_template(send_result: dict, sender: str) -> None:
     if send_result.get("ok"):
         return
 
     error_text = (send_result.get("text") or "").lower()
-    if settings.WHATSAPP_TEMPLATE_RESUME and ("24" in error_text or "outside the allowed window" in error_text or "131047" in error_text):
+    if settings.WHATSAPP_TEMPLATE_RESUME and (
+        "24" in error_text
+        or "outside the allowed window" in error_text
+        or "131047" in error_text
+    ):
         send_whatsapp_template(sender, settings.WHATSAPP_TEMPLATE_RESUME)
-
 
 
 def do_publish() -> dict:
     caption = generate_instagram_post()
     image_public_url = local_image_to_public_url(settings.DEFAULT_IMAGE_PATH)
-    publish_result = publish_instagram_image(caption=caption, image_url=image_public_url)
+    publish_result = publish_instagram_image(
+        caption=caption,
+        image_url=image_public_url,
+    )
     return {
         "success": True,
         "caption": caption,
@@ -128,11 +138,10 @@ def do_publish() -> dict:
     }
 
 
-
 def safe_daily_publish(app: Flask) -> None:
     with app.app_context():
         try:
             result = do_publish()
-            print("[AUTO_PUBLISH_OK]", result)
+            print("[AUTO_PUBLISH_OK]", result, flush=True)
         except Exception as exc:
-            print("[AUTO_PUBLISH_ERROR]", str(exc))
+            print("[AUTO_PUBLISH_ERROR]", str(exc), flush=True)
